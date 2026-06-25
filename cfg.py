@@ -3,6 +3,7 @@
 
 import os
 import json
+import re
 from java.text import SimpleDateFormat
 from java.util import Date
 from ghidra.program.model.block import BasicBlockModel
@@ -23,7 +24,7 @@ EXAMPLE OUTPUT IS AT THE BOTTOM
 ## USAGE
 IF NOT YET ANALYZED:
 
-analyzeHeadless "C:\Users\danie\Desktop\bcsd\bcsd_GhidraProject" bcsd_initBinaries -import "C:\Users\danie\VirtualBox VMs\VirtualBoxShares\UbuntuShare\build\clang\layers-clang-21_1_8-O0.o" -scriptPath "C:\Users\danie\Documents\Tools\GhidraInstallation\ghidra_12.0.4_PUBLIC_20260303\ghidra_12.0.4_PUBLIC\GhidraScriptsRepo" -postScript cfg.py -autoAnalyze
+analyzeHeadless "C:\Users\danie\Desktop\bcsd\bcsd_GhidraProject" bcsd_initBinaries -import "C:\Users\danie\VirtualBox VMs\VirtualBoxShares\UbuntuShare\build\clang\layers-clang-21_1_8-O0-x86_64.o" -scriptPath "C:\Users\danie\Documents\Tools\GhidraInstallation\ghidra_12.0.4_PUBLIC_20260303\ghidra_12.0.4_PUBLIC\GhidraScriptsRepo" -postScript cfg.py -autoAnalyze
 
 -------------------------------------------------------------------------
 IF ALREADY ANALYZED
@@ -42,7 +43,7 @@ if not os.path.exists(OUT_DIR):
 
 # create a semi-variable .json filename to ouput to
 timestamp = SimpleDateFormat("HH-mm-ss").format(Date())
-out_path = os.path.join(OUT_DIR, program_name + "_normalized_cfg_" + timestamp + ".json")
+out_path = os.path.join(OUT_DIR, program_name + "_cfg_" + timestamp + ".json")
 
 
 
@@ -59,7 +60,39 @@ function_manager = currentProgram.getFunctionManager()
 # Fetches an iterator for all recognized functions in the binary, traversing forward through the code
 functions = function_manager.getFunctions(True) 
 
-cfg_dataset = {}
+
+# Get Relevant File Metadata from file name and Ghidra's internal property map
+## Parse file name to extract the compiler, compiler version, optimization level, and arch
+filename_pattern = r"^(?P<source>[^-]+)-(?P<compiler>[^-]+)-(?P<compiler_version>[\d_]+)-(?P<opt>O[0-3s])-(?P<arch>[^.]+)\.o$"
+match = re.match(filename_pattern, program_name)
+source_filename = compiler = compiler_version = opt = arch = "Unknown"
+if match:
+    source_filename = match.group("source")
+    compiler = match.group("compiler")
+    compiler_version = match.group("compiler_version").replace("_", ".")
+    opt = match.group("opt")
+    arch = match.group("arch")
+info_options = currentProgram.getOptions("Program Information")
+## Ghidra calcs hash based on the raw binary input stream of the OG file as it exists on disk
+binary_sha256 = info_options.getString("Executable SHA256", "Hash Not Computed")
+
+
+# Initialize the root container with metadata and a dict to hold functions
+output_json = {
+    "binary_metadata": {
+        "program_name": program_name,
+        "binary_sha256": binary_sha256,
+        "source_filename": source_filename,
+        "compiler": compiler,
+        "compiler_version": compiler_version,
+        "optimization_level": opt,
+        "arch": arch
+    },
+    "functions": {}
+}
+
+# Reference variable shortcut to keep loop syntax identical
+cfg_dataset = output_json["functions"]
 
 # FOR EACH FUNCTION FOUND IN GIVEN BINARY
 for func in functions:
@@ -136,17 +169,14 @@ for func in functions:
                     id_counter += 1
                 target_id = addr_to_id[dest_block_start]
             else:
-                # target_id = dest_block_start # Fallback to absolute value for external jumps
-		# Try to get the actual function name if Ghidra resolved it, 
-    		# otherwise label it as an external address
-    		ext_func = function_manager.getFunctionAt(reference.getDestinationAddress())
-    		if ext_func:
-        		target_id = "EXT_" + ext_func.getName()
-    		else:
-        		target_id = "EXT_" + dest_block_start
+                ext_func = function_manager.getFunctionAt(reference.getDestinationAddress())
+                if ext_func:
+                    target_id = "EXT_" + ext_func.getName()
+                else:
+                    target_id = "EXT_" + dest_block_start
             
-
-	    # Package the edge
+            # --- FIXED INDENTATION ---
+            # This must sit inside the "while destinations.hasNext():" loop
             cfg_dataset[func_name]["edges"].append({
                 "source": source_id,
                 "target": target_id,
@@ -158,7 +188,7 @@ for func in functions:
 # ---------- Export to JSON ----------
 print("Writing CFG structural graph(s) to: " + out_path)
 with open(out_path, 'w') as f:
-    json.dump(cfg_dataset, f, indent=4)
+    json.dump(output_json, f, indent=4)
 
 
 
