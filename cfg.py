@@ -31,8 +31,7 @@ analyzeHeadless "C:\Users\danie\Desktop\bcsd\bcsd_GhidraProject" bcsd_initBinari
 -------------------------------------------------------------------------
 IF ALREADY ANALYZED
 
-analyzeHeadless "C:\Users\danie\Desktop\bcsd\bcsd_GhidraProject" bcsd_initBinaries -process layers-clang-21_1_8-O0.o -scriptPath "C:\Users\danie\Documents\Tools\GhidraInstallation\ghidra_12.0.4_PUBLIC_20260303\ghidra_12.0.4_PUBLIC\GhidraScriptsRepo" -postScript cfg.py -noanalysis
-
+analyzeHeadless "C:\Users\danie\Desktop\bcsd\bcsd_GhidraProject" bcsd_initBinaries -process layers-clang-21_1_8-O0-x86_64.o -scriptPath "C:\Users\danie\Documents\Tools\GhidraInstallation\ghidra_12.0.4_PUBLIC_20260303\ghidra_12.0.4_PUBLIC\GhidraScriptsRepo" -postScript cfg.py -noanalysis
 """
 
 def get_binary_metadata(program_name):
@@ -83,8 +82,19 @@ def process_function_cfg(func, block_model, listing, function_manager):
     ## Headless analyzer can use a dummy
     monitor = TaskMonitor.DUMMY
     func_body = func.getBody()
-    
+
     cfg = {
+        # All Function Metadata should be extracted during disassembly
+        ## The Drs did not seem impressed by Ghidra decompilation artifacts, so only rely on Ghidra disassembly metadata for now
+        "function_metadata": {
+            # The binary's import tables (ie PLT) explicitly state if a jump points out of the file 
+            ## into a library like glibc
+            "is_thunk": func.isThunk(),
+            "is_external_to_binary": func.isExternal(),
+            # Ghidra tracks the stack pointer (RSP/ESP) as it reads the disassembly instructions. 
+            ## If it sees sub rsp, 0x20 at the start of a function and add rsp, 0x20 at the end, it logs a 32-byte stack frame entirely from the disassembly layer
+            "stack_frame_size_bytes": func.getStackFrame().getFrameSize(),
+        },
         "nodes": {},
         "edges": []
     }
@@ -145,7 +155,7 @@ def process_function_cfg(func, block_model, listing, function_manager):
                 "source": source_id,
                 "target": target_id,
                 "flow_type": reference.getFlowType().toString(),
-                "is_local": is_local
+                "is_local_to_function": is_local
             })
 
     return cfg
