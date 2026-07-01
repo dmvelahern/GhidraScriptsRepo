@@ -1,4 +1,6 @@
 
+# Usage: python enhanceBbMetadata.py <input_json> <enrichedJSON_output_directory>
+
 # Purpose: 
 # To run Capstone analysis on each basic block in the Ghidra-generated CFG JSON output. 
 # This will enrich the dataset with additional metadata like 
@@ -17,6 +19,7 @@
 import json
 import binascii
 import sys
+import os
 
 # Will only focus on x86_64 and aarch64 for now, but can be extended to other architectures
 from capstone.x86_const import X86_GRP_RET, X86_GRP_CALL
@@ -123,22 +126,32 @@ def main():
     # print("ARM64 Groups:")
     # print([x for x in dir(arm64) if x.startswith("ARM64_GRP_")])
 
-    JSON_DIR = "C:\\Users\\danie\\Desktop\\bcsd\\bcsd_GhidraProject\\GhidraScriptOutput\\test"
-    json_path = f"{JSON_DIR}\\layers-clang-21_1_8-O0-x86_64.o_normalized_cfg_20-22-16.json"
-    output_path = f"{JSON_DIR}\\ENRICHED_layers-clang-21_1_8-O0-x86_64.o_normalized_cfg_20-22-16.json"
+    # Hardcoded paths for testing
+    # JSON_DIR = "C:\\Users\\danie\\Desktop\\bcsd\\bcsd_GhidraProject\\GhidraScriptOutput\\test"
+    # json_path = f"{JSON_DIR}\\layers-clang-21_1_8-O0-x86_64.o_normalized_cfg_20-22-16.json"
+    # output_path = f"{JSON_DIR}\\ENRICHED_layers-clang-21_1_8-O0-x86_64.o_normalized_cfg_20-22-16.json"
 
-    if len(sys.argv) < 2:
-        print("Usage: python enhanceBbMetadata.py <input_json_path>")
+    if len(sys.argv) != 3:
+        print("Usage: python enhanceBbMetadata.py <input_json_path> <output_directory>")
         sys.exit(1)
 
     json_path = sys.argv[1]
+    output_dir = sys.argv[2]
 
-    # Auto-generate output path
-    if json_path.endswith(".json"):
-        output_path = json_path.replace(".json", "_ENRICHED.json")
+    # Create the output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Keep the same filename, but append _ENRICHED
+    base_name = os.path.basename(json_path)
+
+    if base_name.endswith(".json"):
+        base_name = base_name[:-5] + "_ENRICHED.json"
     else:
-        output_path = json_path + "_ENRICHED.json"
+        base_name += "_ENRICHED.json"
 
+    output_path = os.path.join(output_dir, base_name)
+
+    # Open the JSON file and load its contents
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
