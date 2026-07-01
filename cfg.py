@@ -10,14 +10,22 @@ from ghidra.program.model.block import BasicBlockModel
 from ghidra.util.task import TaskMonitor
 
 # --- CONFIGURATION ---
-OUT_DIR = "C:\\Users\\danie\\Desktop\\bcsd\\bcsd_GhidraProject\\GhidraScriptOutput\\test"
+from ghidra.app.script import GhidraScript
+args = getScriptArgs()
+if len(args) >= 1:
+    OUT_DIR = args[0]
+else:
+    OUT_DIR = os.path.join(os.getcwd(), "cfg_output")
+
+# Or Hardcode a path for testing:
+# OUT_DIR = "C:\\Users\\danie\\Desktop\\bcsd\\bcsd_GhidraProject\\GhidraScriptOutput\\test"
 
 
 """
 ## PURPOSE 
 Use Ghidra headless ananlyzer to 
 traverse every function in a binary, 
-extract the CFG,
+extract the attributed CFG,
 and export to a JSON
 
 
@@ -170,8 +178,7 @@ def main():
         os.makedirs(OUT_DIR)
 
     # create a semi-variable .json filename to ouput to
-    timestamp = SimpleDateFormat("HH-mm-ss").format(Date())
-    out_path = os.path.join(OUT_DIR, "{}_cfg_{}.json".format(program_name, timestamp))
+    out_path = os.path.join(OUT_DIR, "{}_acfg.json".format(program_name))
 
     print("\n--- STARTING CFG EXTRACTION ---")
 
